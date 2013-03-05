@@ -1,0 +1,130 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>SignalR demo - broadcast</title>
+    <meta name="viewport" content="width=device-width" />
+</head>
+    <body>
+        <canvas id="targetCanvas" width="500" height="500" style="border: solid 1px #666; -ms-touch-action: none;"></canvas>
+        <button id="clear">Tyhjennä</button>
+    </body>
+    @Scripts.Render("~/bundles/jquery")
+    @Scripts.Render("~/bundles/site")
+    <script src="~/Scripts/jquery.signalR.js"></script>
+    <script>
+        (function () {
+            var connection = $.connection("/draw");
+            var identity = Date.now();
+            var broadcast = function (s) { };
+            
+            connection.start().done(function () {
+                broadcast = connection.send.bind(connection);
+            });
+
+            connection.received(function (data) {
+                var d = JSON.parse(data);
+
+                if (d && d.identity !== identity)
+                {
+                    // Data did not originate from myself, draw
+                    addClick(d.x, d.y, d.d, "#000");
+                }
+            });
+            
+            function send(coordinates) {
+                coordinates.identity = identity;
+                broadcast(JSON.stringify(coordinates));
+            }
+
+            var canvas = document.getElementById('targetCanvas'),
+                context = canvas.getContext("2d"),
+                drawingQueue = new Queue(),
+                previousPoint,
+                paint;
+
+            // Defaults, set only once to optimize perf.
+            context.lineCap = "round";
+            context.lineJoin = "round";
+            context.lineWidth = 5;
+
+            function clearCanvas() {
+                context.clearRect(0, 0, canvas.width, canvas.height);
+            }
+
+            function addClick(x, y, dragging, color) {
+                drawingQueue.enqueue({
+                    x: x,
+                    y: y,
+                    dragging: dragging,
+                    color: color || "#df4b26"
+                });
+
+                // Color is not given on local drawing
+                if (!color) {
+                    send({ x: x, y: y, d: dragging || 0 });
+                }
+            }
+
+            function draw() {
+                window.requestAnimationFrame(draw);
+                
+                context.beginPath();
+
+                var p = drawingQueue.dequeue();
+
+                while (p) {
+                    // If dragging, draw line between points
+                    if (p.dragging && previousPoint) {
+                        context.moveTo(previousPoint.x, previousPoint.y);
+                    } else {
+                        context.moveTo(p.x - 1, p.y);
+                    }
+
+                    context.strokeStyle = p.color;
+                    context.lineTo(p.x, p.y);
+                    context.stroke();
+                    context.closePath();
+
+                    previousPoint = p;
+                    p = drawingQueue.dequeue();
+                }
+            }
+            
+            function press(e) {
+                paint = true;
+                addClick(e.pageX - this.offsetLeft, e.pageY - this.offsetTop);
+            }
+            
+            function drag(e) {
+                if (paint) {
+                    addClick(e.pageX - this.offsetLeft, e.pageY - this.offsetTop, true);
+                }
+                
+                // Prevent the whole page from dragging
+                e.preventDefault();
+            }
+
+            function release() {
+                paint = false;
+            }
+            
+            function bindCanvas(events, handler) {
+                for (var i = 0; i < events.length; i++) {
+                    canvas.addEventListener(events[i], handler, false);
+                }
+            }
+
+            // Mouse & touch event listeners 
+            bindCanvas(["mousedown", "touchstart", "pointerdown", "MSPointerDown"], press);
+            bindCanvas(["mousemove", "touchmove", "pointermove", "MSPointerMove"], drag);
+            bindCanvas(["mouseup", "mouseout", "touchend", "touchcancel", "pointerup", "MSPointerUp"], release);
+
+            // Clear button
+            document.getElementById("clear").addEventListener('click', clearCanvas, false);
+
+            // Start drawing loop
+            draw();
+        }());
+    </script>
+</html>
