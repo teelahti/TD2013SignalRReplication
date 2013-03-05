@@ -18,5 +18,4 @@ Meaningful code can be found from
 - BroadCastAllConnection.cs: implements persistent connection
 - Views/Home/Index.cshtml: contains client side Javasript logic to draw on canvas and to broadcast actions (intentionally all on one file for easy demonstration)
 
------
-Copyright 2013 Tero Teelahti.
+
